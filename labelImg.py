@@ -1158,19 +1158,19 @@ class MainWindow(QMainWindow, WindowMixin):
         prevFilename = None
         if self.filePath is None:
             filename = self.mImgList[0]
-            print 'não vem aqui'
+            print ('não vem aqui')
             self.loadFile(filename)
         else:
-            print 'veio aqui'
+            print ('veio aqui')
             currIndex = self.mImgList.index(self.filePath)
             if currIndex + 1 < len(self.mImgList):
                 filename = self.mImgList[currIndex + 1]
-            print currIndex
+            print (currIndex)
             prevCurrIndex = self.mImgList.index(self.filePath)
-            print prevCurrIndex
+            print (prevCurrIndex)
             prevFilename = self.mImgList[prevCurrIndex]
-        print filename
-        print prevFilename
+        print (filename)
+        print (prevFilename)
         if filename and prevFilename:
             self.loadFileNext(filename, prevFilename)
 

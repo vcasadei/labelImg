@@ -74,6 +74,18 @@ Python 2 + Qt4
     python labelImg.py
     python  labelImg.py [IMAGE_PATH] [PRE-DEFINED CLASS FILE]
 
+Python 3 + Qt5
+
+.. code::
+
+    brew install qt qt5
+    brew install libxml2
+    make qt5py3
+    python labelImg.py
+    python  labelImg.py [IMAGE_PATH] [PRE-DEFINED CLASS FILE]
+
+* If Python 2 installation doesn't work on your mac, try the python 3 installation as qt4 sometimes fails to install.
+
 
 Windows
 ^^^^^^^
