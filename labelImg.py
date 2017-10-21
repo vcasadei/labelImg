@@ -5,6 +5,7 @@ import os.path
 import re
 import sys
 import subprocess
+import random
 
 from functools import partial
 from collections import defaultdict
@@ -220,6 +221,8 @@ class MainWindow(QMainWindow, WindowMixin):
 
         openNextImg = action('&Next Image', self.openNextImg,
                              'd', 'next', u'Open Next')
+        openNextImgWithLabels = action('&Next Image w/ lbl', self.openNextImgWithLabels,
+                             'n', 'next', u'Open Next Image with previous Labels')
 
         openPrevImg = action('&Prev Image', self.openPrevImg,
                              'a', 'prev', u'Open Prev')
@@ -388,7 +391,7 @@ class MainWindow(QMainWindow, WindowMixin):
             zoomIn, zoom, zoomOut, fitWindow, fitWidth)
 
         self.actions.advanced = (
-            open, opendir, changeSavedir, openNextImg, openPrevImg, save, None,
+            open, opendir, changeSavedir, openNextImgWithLabels, openNextImg, openPrevImg, save, None,
             createMode, editMode, None,
             hideAll, showAll)
 
@@ -1139,6 +1142,33 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def openNextImg(self, _value=False):
         # Proceding prev image without dialog if having any label
+        if self.autoSaving.isChecked():
+            if self.defaultSaveDir is not None:
+                if self.dirty is True:
+                    self.saveFile()
+            else:
+                self.changeSavedir()
+                return
+
+        if not self.mayContinue():
+            return
+
+        if len(self.mImgList) <= 0:
+            return
+
+        filename = None
+        if self.filePath is None:
+            filename = self.mImgList[0]
+            self.loadFile(filename)
+        else:
+            currIndex = self.mImgList.index(self.filePath)
+            if currIndex + 1 < len(self.mImgList):
+                filename = self.mImgList[currIndex + 1]
+        if filename:
+            self.loadFile(filename)
+
+    def openNextImgWithLabels(self, _value=False):
+        # Proceding next image without dialog if having any label
         if self.autoSaving.isChecked():
             if self.defaultSaveDir is not None:
                 if self.dirty is True:
