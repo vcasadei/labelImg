@@ -1,3 +1,9 @@
+TO-DO
+========
+- get prev xml from subbolders
+- set loadingScreen class on new file
+
+
 LabelImg
 ========
 

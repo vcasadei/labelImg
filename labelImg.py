@@ -6,7 +6,9 @@ import re
 import sys
 import subprocess
 import random
-
+import threading
+import time
+import math
 from functools import partial
 from collections import defaultdict
 
@@ -40,7 +42,7 @@ from libs.toolBar import ToolBar
 from libs.pascal_voc_io import PascalVocReader
 from libs.pascal_voc_io import XML_EXT
 from libs.ustr import ustr
-
+from threading import Timer
 __appname__ = 'labelImg'
 
 # Utility functions and classes.
@@ -81,14 +83,88 @@ class HashableQListWidgetItem(QListWidgetItem):
     def __hash__(self):
         return hash(id(self))
 
+class LoadingScreen(QWidget):
 
+    def __init__(self, parent = None):
+        super(LoadingScreen, self).__init__(parent)
+        self.setWindowFlags(Qt.WindowStaysOnTopHint)
+        self.setWindowFlags(Qt.FramelessWindowHint)
+        self.showMaximized()
+        qtRectangle = self.frameGeometry()
+        centerPoint = QDesktopWidget().availableGeometry().center()
+        qtRectangle.moveCenter(centerPoint)
+        self.move(qtRectangle.topLeft())
+        palette = QPalette(self.palette())
+        palette.setColor(palette.Background, QColor(0, 0, 0, 150))
+        self.setPalette(palette)
+        self.l1 = QLabel()
+        self.l1.setText("Loading")
+        self.l1.setFont(QFont('SansSerif', 18, QFont.Bold))
+        paletteLbl = self.l1.palette()
+        paletteLbl.setColor(self.l1.foregroundRole(), QColor(255, 255, 255))
+        self.l1.setPalette(paletteLbl)
+        self.l1.setAlignment(Qt.AlignCenter)
+        vbox = QVBoxLayout()
+        vbox.addWidget(self.l1)
+        self.setLayout(vbox)
+        
+    
+    def paintEvent(self, event):
+        painter = QPainter()
+        painter.begin(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(QPen(Qt.NoPen))
+        if (self.lblCounter/10) == 1:
+            self.l1.setText("Loading.")
+        elif (self.lblCounter/10) == 2:
+            self.l1.setText("Loading..")
+        elif (self.lblCounter/10) == 3:
+            self.l1.setText("Loading...")
+        elif (self.lblCounter/10) == 4:
+            self.l1.setText("Loading")
+        elif (self.lblCounter/10) == 5:
+            self.l1.setText("Loading.")
+        elif (self.lblCounter/10) == 6:
+            self.l1.setText("Loading..")
+        elif (self.lblCounter/10) == 7:
+            self.l1.setText("Loading...")
+        elif (self.lblCounter/10) == 8:
+            self.l1.setText("Loading")
+        elif (self.lblCounter/10) == 9:
+            self.l1.setText("Loading.")
+        
+        for i in range(12):
+            if (self.counter) % 12 == i:
+                painter.setBrush(QBrush(QColor(0, 22, 168)))
+            else:
+                painter.setBrush(QBrush(QColor(63, 194, 255)))
+            painter.drawEllipse(
+                self.width()/2 + 80 * math.cos(2 * math.pi * i / 12.0) - 10,
+                self.height()/2 + 80 * math.sin(2 * math.pi * i / 12.0) - 10,
+                30, 30)
+        
+        painter.end()
+    
+    def showEvent(self, event):
+        self.timer = self.startTimer(60)
+        self.counter = 0
+        self.lblCounter = 0
+    
+    def timerEvent(self, event):
+        self.counter += 1
+        self.lblCounter += 1
+        if self.lblCounter == 100:
+            self.lblCounter = 20
+        self.update()
 class MainWindow(QMainWindow, WindowMixin):
     FIT_WINDOW, FIT_WIDTH, MANUAL_ZOOM = list(range(3))
 
     def __init__(self, defaultFilename=None, defaultPrefdefClassFile=None):
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
-
+        self.loading = None
+        self.loading = LoadingScreen()
+        self.loading.show()
         # Load setting in the main thread
         self.settings = Settings()
         self.settings.load()
@@ -221,6 +297,10 @@ class MainWindow(QMainWindow, WindowMixin):
 
         openNextImg = action('&Next Image', self.openNextImg,
                              'd', 'next', u'Open Next')
+        loadLastFile = action('&Continue Work', self.loadLastFile,
+                             'c', 'checkpoint', u'Continue from last labelled file')
+        deleteImg = action('&Delete Image', self.deleteImg,
+                             'z', 'delete', u'Delete Image')
         openNextImgWithLabels = action('&Next Image w/ lbl', self.openNextImgWithLabels,
                              'n', 'next', u'Open Next Image with previous Labels')
 
@@ -388,8 +468,8 @@ class MainWindow(QMainWindow, WindowMixin):
             zoomIn, zoom, zoomOut, fitWindow, fitWidth)
 
         self.actions.advanced = (
-            open, opendir, changeSavedir, openNextImgWithLabels, openNextImg, openPrevImg, save, None,
-            createMode, editMode, None,
+            open, opendir, changeSavedir, openNextImgWithLabels, deleteImg , openNextImg, openPrevImg, save, None,
+            createMode, editMode, None, loadLastFile,
             hideAll, showAll)
 
         self.statusBar().showMessage('%s started.' % __appname__)
@@ -456,7 +536,10 @@ class MainWindow(QMainWindow, WindowMixin):
         self.zoomWidget.valueChanged.connect(self.paintCanvas)
 
         self.populateModeActions()
+        t = Timer(1.0, self.loading.hide)
+        t.start()
 
+        
     ## Support Functions ##
 
     def noShapes(self):
@@ -487,7 +570,7 @@ class MainWindow(QMainWindow, WindowMixin):
         actions = (self.actions.create,) if self.beginner()\
             else (self.actions.createMode, self.actions.editMode)
         addActions(self.menus.edit, actions + self.actions.editMenu)
-
+        
     def setBeginner(self):
         self.tools.clear()
         addActions(self.tools, self.actions.beginner)
@@ -875,6 +958,51 @@ class MainWindow(QMainWindow, WindowMixin):
         for item, shape in self.itemsToShapes.items():
             item.setCheckState(Qt.Checked if value else Qt.Unchecked)
 
+    def loadLastFile(self):
+        if len(self.mImgList) <= 0:
+            self.selectImageDir()
+            return
+        self.loading = LoadingScreen()
+        self.loading.show()
+        qApp.processEvents()
+        self.thread = QThread()
+        self.thread.started.connect(self.searchLastFile)
+        self.thread.start()
+
+    def searchLastFile(self, filePath=None):
+        qApp.processEvents()
+        filename = None
+        prevFilename = None
+        if self.filePath is not None:
+            currIndex = self.mImgList.index(self.filePath)
+            if currIndex + 1 < len(self.mImgList):
+                filePath = self.mImgList[currIndex + 1]
+                filePathPrev = self.mImgList[currIndex]
+        if filePath and filePathPrev:
+            if filePath is None:
+                filePath = self.settings.get(SETTING_FILENAME)
+            if filePathPrev is None:
+                filePathPrev = self.settings.get(SETTING_FILENAME)
+            unicodeFilePath = ustr(filePath)
+            unicodeFilePathPrev = ustr(filePathPrev)
+
+            if unicodeFilePath and os.path.exists(unicodeFilePath):
+                self.filePath = unicodeFilePath
+
+                if self.usingPascalVocFormat is True:
+                    if self.defaultSaveDir is not None:
+                        xmlPathPrev = os.path.splitext(filePathPrev)[0] + XML_EXT
+                        basename = os.path.basename(
+                            os.path.splitext(self.filePath)[0]) + XML_EXT
+                        xmlPath = os.path.join(self.defaultSaveDir, basename)
+                        shapes = self.getShapesFromXMLByFilename(xmlPath)
+                        if shapes is None or len(shapes[0]) == 0:
+                            self.filePath = filePathPrev
+                            self.openNextImg()
+                            self.loading.hide()
+                        else:
+                            self.searchLastFile(self.filePath)
+
     def loadFile(self, filePath=None):
         """Load the specified file, or the last opened file if None."""
         self.resetState()
@@ -941,7 +1069,13 @@ class MainWindow(QMainWindow, WindowMixin):
                     if os.path.isfile(xmlPath):
                         self.loadPascalXMLByFilename(xmlPath)
 
-            self.setWindowTitle(__appname__ + ' ' + filePath)
+            if filePath is not None:
+                currIndex = self.mImgList.index(filePath)
+                percentage = float((currIndex + 1)*100.0/len(self.mImgList))
+                percentageString = "{:.2f}%".format(round(percentage,2))
+                self.setWindowTitle(__appname__ + ' - ' + 'Completed ' + percentageString + ' - ' + filePath)
+            else:
+                self.setWindowTitle(__appname__ + ' ' + filePath)
 
             # Default : select last item if there is at least one item
             if self.labelList.count():
@@ -1145,6 +1279,47 @@ class MainWindow(QMainWindow, WindowMixin):
             filename = self.mImgList[currIndex - 1]
             if filename:
                 self.loadFile(filename)
+    def deleteImg(self, _value=False):
+        if not self.mayContinue():
+            return
+
+        if len(self.mImgList) <= 0:
+            return
+
+        filename = None
+        if self.filePath is None:
+            filename = self.mImgList[0]
+            filePath = ustr(filename)
+        else:
+            currIndex = self.mImgList.index(self.filePath)
+            filename = self.mImgList[currIndex]
+            filePath = ustr(filename)
+        
+        if self.defaultSaveDir is not None:
+            basename = os.path.basename(
+                os.path.splitext(filePath)[0]) + XML_EXT
+            xmlPath = os.path.join(self.defaultSaveDir, basename)
+        else:
+            xmlPath = os.path.splitext(filePath)[0] + XML_EXT
+
+        if os.path.exists(filePath):
+                os.remove(filePath)
+        if os.path.exists(xmlPath):
+                os.remove(xmlPath)
+
+        prevFilename = None
+        if self.filePath is not None:
+            currIndex = self.mImgList.index(self.filePath)
+            if currIndex + 1 < len(self.mImgList):
+                filename = self.mImgList[currIndex + 1]
+            if currIndex - 1 >= 0:
+                prevFilename = self.mImgList[currIndex - 1]
+        fileToBeRemoved = self.filePath
+        if prevFilename:
+            self.loadFileNext(filename, prevFilename)
+        else:
+            self.loadFile(filename)
+        self.mImgList.remove(fileToBeRemoved)
 
     def openNextImg(self, _value=False):
         # Proceding prev image without dialog if having any label
@@ -1189,24 +1364,17 @@ class MainWindow(QMainWindow, WindowMixin):
         if len(self.mImgList) <= 0:
             return
 
-
         filename = None
         prevFilename = None
         if self.filePath is None:
             filename = self.mImgList[0]
-            print ('não vem aqui')
             self.loadFile(filename)
         else:
-            print ('veio aqui')
             currIndex = self.mImgList.index(self.filePath)
             if currIndex + 1 < len(self.mImgList):
                 filename = self.mImgList[currIndex + 1]
-            print (currIndex)
             prevCurrIndex = self.mImgList.index(self.filePath)
-            print (prevCurrIndex)
             prevFilename = self.mImgList[prevCurrIndex]
-        print (filename)
-        print (prevFilename)
         if filename and prevFilename:
             self.loadFileNext(filename, prevFilename)
 
@@ -1218,7 +1386,6 @@ class MainWindow(QMainWindow, WindowMixin):
             filePath = self.settings.get(SETTING_FILENAME)
         if filePathPrev is None:
             filePathPrev = self.settings.get(SETTING_FILENAME)
-
         unicodeFilePath = ustr(filePath)
         unicodeFilePathPrev = ustr(filePathPrev)
         # Tzutalin 20160906 : Add file list and dock to move faster
@@ -1273,15 +1440,25 @@ class MainWindow(QMainWindow, WindowMixin):
                     basename = os.path.basename(
                         os.path.splitext(self.filePath)[0]) + XML_EXT
                     xmlPath = os.path.join(self.defaultSaveDir, basename)
-                    if os.path.isfile(xmlPathPrev):
+                    shapes = self.getShapesFromXMLByFilename(xmlPath)
+                    if shapes is None or (len(shapes[0]) == 0 and os.path.isfile(xmlPathPrev)):
                         self.setDirty()
                         self.loadPascalXMLByFilename(xmlPathPrev)
+                    else:
+                        self.setDirty()
+                        self.loadPascalXMLByFilename(xmlPath)
                 else:
                     xmlPath = os.path.splitext(filePath)[0] + XML_EXT
                     if os.path.isfile(xmlPath):
                         self.loadPascalXMLByFilename(xmlPath)
-
-            self.setWindowTitle(__appname__ + ' ' + filePath)
+            if filePath is not None:
+                currIndex = self.mImgList.index(filePath)
+                percentage = float((currIndex + 1)*100.0/len(self.mImgList))
+                percentageString = "{:.2f}%".format(round(percentage,2))
+                self.setWindowTitle(__appname__ + ' - ' + 'Completed ' + percentageString + ' - ' + filePath)
+            else:
+                self.setWindowTitle(__appname__ + ' ' + filePath)
+            
 
             # Default : select last item if there is at least one item
             if self.labelList.count():
@@ -1366,6 +1543,11 @@ class MainWindow(QMainWindow, WindowMixin):
         msg = u'You have unsaved changes, proceed anyway?'
         return yes == QMessageBox.warning(self, u'Attention', msg, yes | no)
 
+    def selectImageDir(self):
+        ok = QMessageBox.Ok
+        msg = u'You must open a directory with images first!'
+        return ok == QMessageBox.warning(self, u'Attention', msg, ok)
+
     def errorMessage(self, title, message):
         return QMessageBox.critical(self, title,
                                     '<p><b>%s</b></p>%s' % (title, message))
@@ -1426,6 +1608,13 @@ class MainWindow(QMainWindow, WindowMixin):
                         self.labelHist.append(line)
 
     def loadPascalXMLByFilename(self, xmlPath):
+        shapes = self.getShapesFromXMLByFilename(xmlPath)
+        if shapes is None:
+            return
+        self.loadLabels(shapes[0])
+        self.canvas.verified = shapes[1].verified
+
+    def getShapesFromXMLByFilename(self, xmlPath):
         if self.filePath is None:
             return
         if os.path.isfile(xmlPath) is False:
@@ -1433,9 +1622,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         tVocParseReader = PascalVocReader(xmlPath)
         shapes = tVocParseReader.getShapes()
-        self.loadLabels(shapes)
-        self.canvas.verified = tVocParseReader.verified
-
+        return shapes, tVocParseReader
 
 def inverted(color):
     return QColor(*[255 - v for v in color.getRgb()])
