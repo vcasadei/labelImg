@@ -2,7 +2,6 @@ import sys
 
 def ustr(x):
     '''py2/py3 unicode helper'''
-
     if sys.version_info < (3, 0, 0):
         from PyQt4.QtCore import QString
         if type(x) == str:

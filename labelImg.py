@@ -98,7 +98,7 @@ class LoadingScreen(QWidget):
         palette.setColor(palette.Background, QColor(0, 0, 0, 150))
         self.setPalette(palette)
         self.l1 = QLabel()
-        self.l1.setText("Loading")
+        self.l1.setText("Loading.")
         self.l1.setFont(QFont('SansSerif', 18, QFont.Bold))
         paletteLbl = self.l1.palette()
         paletteLbl.setColor(self.l1.foregroundRole(), QColor(255, 255, 255))
@@ -115,29 +115,49 @@ class LoadingScreen(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(QPen(Qt.NoPen))
         if (self.lblCounter/10) == 1:
-            self.l1.setText("Loading.")
+            self.l1.setText("Loading..")
         elif (self.lblCounter/10) == 2:
-            self.l1.setText("Loading..")
+            self.l1.setText("Loading...")
         elif (self.lblCounter/10) == 3:
-            self.l1.setText("Loading...")
+            self.l1.setText("Loading")
         elif (self.lblCounter/10) == 4:
-            self.l1.setText("Loading")
+            self.l1.setText("Loading.")
         elif (self.lblCounter/10) == 5:
-            self.l1.setText("Loading.")
-        elif (self.lblCounter/10) == 6:
             self.l1.setText("Loading..")
-        elif (self.lblCounter/10) == 7:
+        elif (self.lblCounter/10) == 6:
             self.l1.setText("Loading...")
-        elif (self.lblCounter/10) == 8:
+        elif (self.lblCounter/10) == 7:
             self.l1.setText("Loading")
-        elif (self.lblCounter/10) == 9:
+        elif (self.lblCounter/10) == 8:
             self.l1.setText("Loading.")
+        elif (self.lblCounter/10) == 9:
+            self.l1.setText("Loading..")
         
         for i in range(12):
             if (self.counter) % 12 == i:
-                painter.setBrush(QBrush(QColor(0, 22, 168)))
+                painter.setBrush(QBrush(QColor(0, 39, 119)))
+            elif (self.counter - 1) % 12 == i:
+                painter.setBrush(QBrush(QColor(8, 53, 145)))
+            elif (self.counter - 2) % 12 == i:
+                painter.setBrush(QBrush(QColor(22, 66, 158)))
+            elif (self.counter - 3) % 12 == i:
+                painter.setBrush(QBrush(QColor(32, 74, 163)))
+            elif (self.counter - 4) % 12 == i:
+                painter.setBrush(QBrush(QColor(43, 86, 175, 250)))
+            elif (self.counter - 5) % 12 == i:
+                painter.setBrush(QBrush(QColor(55, 96, 178, 200)))
+            elif (self.counter - 6) % 12 == i:
+                painter.setBrush(QBrush(QColor(69, 109, 188, 160)))
+            elif (self.counter - 7) % 12 == i:
+                painter.setBrush(QBrush(QColor(69, 109, 188, 85)))
+            elif (self.counter - 8) % 12 == i:
+                painter.setBrush(QBrush(QColor(69, 109, 188, 65)))
+            elif (self.counter - 9) % 12 == i:
+                painter.setBrush(QBrush(QColor(69, 109, 188, 45)))
+            elif (self.counter - 10) % 12 == i:
+                painter.setBrush(QBrush(QColor(69, 109, 188, 25)))
             else:
-                painter.setBrush(QBrush(QColor(63, 194, 255)))
+                painter.setBrush(QBrush(QColor(69, 109, 188, 5)))
             painter.drawEllipse(
                 self.width()/2 + 80 * math.cos(2 * math.pi * i / 12.0) - 10,
                 self.height()/2 + 80 * math.sin(2 * math.pi * i / 12.0) - 10,
@@ -534,7 +554,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Callbacks:
         self.zoomWidget.valueChanged.connect(self.paintCanvas)
-
+        sys.setrecursionlimit(9000)
         self.populateModeActions()
         t = Timer(1.0, self.loading.hide)
         t.start()
@@ -965,9 +985,10 @@ class MainWindow(QMainWindow, WindowMixin):
         self.loading = LoadingScreen()
         self.loading.show()
         qApp.processEvents()
-        self.thread = QThread()
-        self.thread.started.connect(self.searchLastFile)
-        self.thread.start()
+        # self.thread = QThread()
+        # self.thread.started.connect(self.searchLastFile)
+        # self.thread.start()
+        self.searchLastFile()
 
     def searchLastFile(self, filePath=None):
         qApp.processEvents()
@@ -983,8 +1004,9 @@ class MainWindow(QMainWindow, WindowMixin):
                 filePath = self.settings.get(SETTING_FILENAME)
             if filePathPrev is None:
                 filePathPrev = self.settings.get(SETTING_FILENAME)
-            unicodeFilePath = ustr(filePath)
-            unicodeFilePathPrev = ustr(filePathPrev)
+
+            unicodeFilePath = filePath
+            unicodeFilePathPrev = filePathPrev
 
             if unicodeFilePath and os.path.exists(unicodeFilePath):
                 self.filePath = unicodeFilePath
@@ -995,11 +1017,15 @@ class MainWindow(QMainWindow, WindowMixin):
                         basename = os.path.basename(
                             os.path.splitext(self.filePath)[0]) + XML_EXT
                         xmlPath = os.path.join(self.defaultSaveDir, basename)
-                        shapes = self.getShapesFromXMLByFilename(xmlPath)
-                        if shapes is None or len(shapes[0]) == 0:
+                        # shapes = self.getShapesFromXMLByFilename(xmlPath)
+                        
+                        # print(self.filePath)
+                        # print(xmlPath)
+                        if os.path.isfile(xmlPath) is False:
                             self.filePath = filePathPrev
                             self.openNextImg()
                             self.loading.hide()
+                            return
                         else:
                             self.searchLastFile(self.filePath)
 
@@ -1280,8 +1306,8 @@ class MainWindow(QMainWindow, WindowMixin):
             if filename:
                 self.loadFile(filename)
     def deleteImg(self, _value=False):
-        if not self.mayContinue():
-            return
+        # if not self.mayContinue():
+        #     return
 
         if len(self.mImgList) <= 0:
             return

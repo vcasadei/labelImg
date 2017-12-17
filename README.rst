@@ -2,7 +2,13 @@ TO-DO
 ========
 - get prev xml from subbolders
 - set loadingScreen class on new file
-
+- set loading as splash window
+- check shape == 0 bug
+- fix percentage after delete
+- show percentage only when using dir
+- choose another place to show percentage
+- threat case when the whole directory has been marked
+- select and move several rectboxes together
 
 LabelImg
 ========
